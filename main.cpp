@@ -221,87 +221,82 @@ behavior turntable(event_based_actor *self, Position position,
 }
 
 behavior helper(event_based_actor *self) {
-  return {
-      // requests the status of a turntable and a plotter
-      [=](get_atom, atom_value turntable, atom_value plotter) {
-        auto turntable_actor =
-            actor_cast<actor>(self->system().registry().get(turntable));
-        auto plotter_actor =
-            actor_cast<actor>(self->system().registry().get(plotter));
+  std::string name = "helper";
 
-        auto response = self->make_response_promise<
-            std::tuple<Position, bool, char, bool>>();
+  return {// requests the status of a turntable and a plotter
+          [=](get_atom, atom_value turntable, atom_value plotter) {
+            auto turntable_actor = actor_cast<actor>(self->system().registry().get(turntable));
+            auto plotter_actor = actor_cast<actor>(self->system().registry().get(plotter));
 
-        // request turntable status
-        self->request(turntable_actor, infinite, get_atom::value)
-            .then([=](std::pair<Position, bool> turntable_status) mutable {
-              // reqest plotter status
-              self->request(plotter_actor, infinite, get_atom::value)
-                  .then([=](std::pair<char, bool> plotter_status) mutable {
-                    response.deliver(std::make_tuple(
-                        turntable_status.first, turntable_status.second,
-                        plotter_status.first, plotter_status.second));
-                  });
-            });
+            auto response = self->make_response_promise<std::tuple<Position, bool, char, bool>>();
 
-        self->request(actor_cast<actor>(self), infinite, get_atom::value);
-      },
+            // request turntable status
+            self->request(turntable_actor, infinite, get_atom::value)
+                .then([=](std::pair<Position, bool> turntable_status) mutable {
+                  // reqest plotter status
+                  self->request(plotter_actor, infinite, get_atom::value)
+                      .then([=](std::pair<char, bool> plotter_status) mutable {
+                        response.deliver(std::make_tuple(turntable_status.first, turntable_status.second,
+                                                         plotter_status.first, plotter_status.second));
+                      });
+                });
 
-      // prints at a plotter if possible
-      [=](print_atom, atom_value plotter) -> result<ok_atom> {
-        aout(self) << "Would print on " << to_string(plotter) << std::endl;
+            return response;
+          },
 
-        auto turntable = plotter_turntable(plotter);
-        //        auto helper_actor = self->system().spawn(helper);
+          // prints at a plotter if possible
+          [=](print_atom, atom_value plotter) -> result<ok_atom> {
+            aout(self) << name << ": Would print on " << to_string(plotter) << std::endl;
 
-        auto response = self->make_response_promise<ok_atom>();
+            auto turntable = plotter_turntable(plotter);
 
-        // request turntable and plotter position and print only if can
-        self->request(actor_cast<actor>(self), infinite, get_atom::value,
-                      turntable, plotter)
-            .then([=](std::tuple<Position, bool, char, bool> status) {
-              auto [turntable_direction, turntable_loaded, plotter_color,
-                    plotter_loaded] = status;
+            auto response = self->make_response_promise<ok_atom>();
 
-              aout(self) << "Turntable loaded: " << turntable_loaded
-                         << std::endl;
-              aout(self) << "Turntable direction: " << turntable_direction
-                         << std::endl;
+            // request turntable and plotter position and print only if can
+            self->request(actor_cast<actor>(self), infinite, get_atom::value, turntable, plotter)
+                .then([=](std::tuple<Position, bool, char, bool> status) {
+                  auto [turntable_direction, turntable_loaded, plotter_color, plotter_loaded] = status;
 
-              aout(self) << "Plotter loaded: " << plotter_loaded << std::endl;
-              aout(self) << "Plotter color: " << plotter_color << std::endl;
+                  aout(self) << name << ": Turntable loaded: " << turntable_loaded << std::endl;
+                  aout(self) << name << ": Turntable direction: " << turntable_direction << std::endl;
 
-              if (turntable_loaded && !plotter_loaded &&
-                  is_facing_plotter(turntable_direction, plotter)) {
+                  aout(self) << name << ": Plotter loaded: " << plotter_loaded << std::endl;
+                  aout(self) << name << ": Plotter color: " << plotter_color << std::endl;
 
-                auto turntable_actor =
-                    actor_cast<actor>(self->system().registry().get(turntable));
-                auto plotter_actor =
-                    actor_cast<actor>(self->system().registry().get(plotter));
+                  if (turntable_loaded && !plotter_loaded && is_facing_plotter(turntable_direction, plotter)) {
 
-                self->request(turntable_actor, infinite, push_atom::value)
-                    .then([=](ok_atom) {
-                      self->request(plotter_actor, infinite, pull_atom::value)
-                          .then([=](ok_atom) {
-                            self->request(plotter_actor, infinite,
-                                          print_atom::value)
-                                .then([=](ok_atom) mutable {
-                                  response.deliver(ok_atom::value);
-                                });
+                    auto turntable_actor = actor_cast<actor>(self->system().registry().get(turntable));
+                    auto plotter_actor = actor_cast<actor>(self->system().registry().get(plotter));
+
+                    // Push paper from turntable to plotter
+                    self->request(turntable_actor, infinite, push_atom::value).then([=](ok_atom) {
+                      // Pull paper from turntable to plotter
+                      self->request(plotter_actor, infinite, pull_atom::value).then([=](ok_atom) {
+                        // Print on plotter
+                        self->request(plotter_actor, infinite, print_atom::value).then([=](ok_atom) {
+                          // push paper from plotter to turntable
+                          self->request(plotter_actor, infinite, push_atom::value).then([=](ok_atom) {
+                            // Pull paper from plotter into turntable
+                            self->request(turntable_actor, infinite, pull_atom::value).then([=](ok_atom) mutable {
+                              // all done
+                              aout(self) << name << ": done printing" << std::endl;
+                              response.deliver(ok_atom::value);
+                            });
                           });
+                        });
+                      });
                     });
-              } else {
-                aout(self) << "Issued print in inconsistent state!"
-                           << std::endl;
-              }
-            });
+                  } else {
+                    aout(self) << name << ": Issued print in inconsistent state!" << std::endl;
+                  }
+                });
 
-        return ok_atom::value;
-      }};
+            return response;
+          }};
 }
 
 // Planner for East or West turntable and plotters
-behavior region_planner(event_based_actor *self, Position region, bool loaded) {
+behavior region_planner(event_based_actor *self, Position region, bool loaded, char north_color, char south_color) {
   auto plotter_north = region == Position::East
                            ? static_cast<atom_value>(plotter_ne_atom::value)
                            : static_cast<atom_value>(plotter_nw_atom::value);
@@ -318,8 +313,9 @@ behavior region_planner(event_based_actor *self, Position region, bool loaded) {
       actor_cast<actor>(self->system().registry().get(plotter_north));
   auto plotter_south_actor =
       actor_cast<actor>(self->system().registry().get(plotter_south));
-  auto turntable_actor =
-      actor_cast<actor>(self->system().registry().get(turntable));
+  auto turntable_actor = actor_cast<actor>(self->system().registry().get(turntable));
+
+  std::string name = "Region Planner " + to_string(region);
 
   message_handler basic_handler = {
       // returns whether the plotter north, plotter south, and turntable do
@@ -328,8 +324,7 @@ behavior region_planner(event_based_actor *self, Position region, bool loaded) {
 
       // turn the turntable until the to_position is reached
       [=](turn_atom, Position to_position) -> result<ok_atom> {
-        aout(self) << "Want to turn " << to_string(turntable) << " "
-                   << to_position << std::endl;
+        aout(self) << name << ": Want to turn " << to_string(turntable) << " " << to_position << std::endl;
 
         auto result = self->make_response_promise<ok_atom>();
         // ask the turntable what is its position
@@ -337,8 +332,7 @@ behavior region_planner(event_based_actor *self, Position region, bool loaded) {
             .await([=](std::pair<Position, bool> turntable_status) mutable {
               auto [turntable_position, turntable_loaded] = turntable_status;
 
-              aout(self) << "Current position: " << turntable_position
-                         << std::endl;
+              aout(self) << name << ": Current position: " << turntable_position << std::endl;
 
               if (turntable_position == to_position)
                 result.deliver(ok_atom::value);
@@ -355,155 +349,125 @@ behavior region_planner(event_based_actor *self, Position region, bool loaded) {
       }};
 
   message_handler loaded_handler = {
-      [=](print_atom, std::string sequnce) {},
+      [=](print_atom, char ch) -> result<ok_atom> {
+        aout(self) << name << ": Want to print: " << ch << std::endl;
+
+        auto helper_actor = self->system().spawn(helper);
+        auto response = self->make_response_promise<ok_atom>();
+
+        if (ch == north_color) {
+          // turn turntable until it's in the north position
+          self->request(actor_cast<actor>(self), infinite, turn_atom::value, Position::North)
+              .then([=](ok_atom) mutable {
+                // print on plotter
+                response.delegate(helper_actor, print_atom::value, plotter_north);
+              });
+        } else {
+          // turn turntable until it's in the south position
+          self->request(actor_cast<actor>(self), infinite, turn_atom::value, Position::South)
+              .then([=](ok_atom) mutable {
+                // print on south plotter
+                response.delegate(helper_actor, print_atom::value, plotter_south);
+              });
+        }
+        return response;
+      },
+      [=](print_atom, std::string sequence) -> result<std::string> {
+        aout(self) << name << ": Want to print sequence: " << sequence << std::endl;
+
+        auto response = self->make_response_promise<std::string>();
+
+        auto it = std::find_if(std::begin(sequence), std::end(sequence),
+                               [north_color, south_color](char ch) { return ch == north_color || ch == south_color; });
+
+        if (it == std::end(sequence)) {
+          aout(self) << name << ": No printable colors: " << sequence;
+          response.deliver(sequence);
+        } else {
+          char ch = *it;
+          sequence.erase(it);
+          self->request(actor_cast<actor>(self), infinite, print_atom::value, ch).then([=](ok_atom) mutable {
+            response.delegate(actor_cast<actor>(self), print_atom::value, sequence);
+          });
+        }
+        return response;
+      },
       [=](push_atom) -> result<ok_atom> {
         // rotate to east and push
         auto response = self->make_response_promise<ok_atom>();
 
-        self->request(actor_cast<actor>(self), infinite, turn_atom::value,
-                      Position::East)
-            .then([=](ok_atom) mutable {
-              self->become(region_planner(self, region, false));
-              response.deliver(ok_atom::value);
-            });
+        self->request(actor_cast<actor>(self), infinite, turn_atom::value, Position::East).then([=](ok_atom) mutable {
+          self->become(region_planner(self, region, false, north_color, south_color));
+          response.deliver(ok_atom::value);
+        });
 
         return response;
       }};
 
   message_handler unloaded_handler = {[=](pull_atom) -> result<ok_atom> {
+    aout(self) << name << ": Pulling paper" << std::endl;
+
     auto response = self->make_response_promise<ok_atom>();
 
     // rotate to west and pull
-    self->request(actor_cast<actor>(self), infinite, turn_atom::value,
-                  Position::West)
-        .then([=](ok_atom) {
-          self->request(turntable_actor, infinite, pull_atom::value)
-              .then([=](ok_atom) mutable {
-                self->become(region_planner(self, region, true));
-                response.deliver(ok_atom::value);
-              });
-        });
+    self->request(actor_cast<actor>(self), infinite, turn_atom::value, Position::West).then([=](ok_atom) {
+      self->request(turntable_actor, infinite, pull_atom::value).then([=](ok_atom) mutable {
+        self->become(region_planner(self, region, true, north_color, south_color));
+        response.deliver(ok_atom::value);
+        aout(self) << name << ": Paper pulled" << std::endl;
+      });
+    });
 
     return response;
   }};
 
-  return loaded ? basic_handler.or_else(loaded_handler)
-                : basic_handler.or_else(unloaded_handler);
-
-  //        auto response = self->make_response_promise<bool>();
-
-  //        // ask the north actor whether it is empty
-  //        self->request(plotter_north_actor, infinite,
-  //        get_atom::value)
-  //            .await([=](std::pair<char, bool> north_actor_status)
-  //            mutable {
-  //              // north actor not empty: return the result
-  //              if (north_actor_status.second) {
-  //                response.deliver(false);
-  //              } else {
-  //                // north actor empty: ask the south actor and then
-  //                the turntable self->request(plotter_south_actor,
-  //                infinite, get_atom::value)
-  //                    .await(
-  //                        [=](std::pair<char, bool>
-  //                        south_actor_status) mutable {
-  //                          // south actor not empty: return the
-  //                          result if (south_actor_status.second) {
-  //                            response.deliver(false);
-  //                          } else {
-  //                            // south actor empty: ask the
-  //                            turntable
-  //                            self->request(turntable_actor,
-  //                            infinite,
-  //                                          get_atom::value)
-  //                                .await([=](std::pair<Position,
-  //                                bool>
-  //                                               turntableStatus)
-  //                                               mutable {
-  //                                  // return whether the turntable
-  //                                  is empty
-  //                                  response.deliver(!turntableStatus.second);
-  //                                });
-  //                          }
-  //                        });
-  //              }
-  //            }
+  return loaded ? basic_handler.or_else(loaded_handler) : basic_handler.or_else(unloaded_handler);
 }
 
 behavior planner(event_based_actor *self, std::string plotters) {
+  std::string name = "Planner";
+
   char plotter_nw = plotters[0];
   char plotter_sw = plotters[1];
   char plotter_se = plotters[2];
   char plotter_ne = plotters[3];
 
+  auto west_planner = self->system().spawn(region_planner, Position::West, false, plotter_nw, plotter_sw);
+  auto east_planner = self->system().spawn(region_planner, Position::East, false, plotter_ne, plotter_se);
+
   message_handler print_handler = {[=](print_atom, std::string sequence) {
-    aout(self) << "planner::print(" << sequence << std::endl;
+    aout(self) << name << ": Printing " << sequence << std::endl;
 
-    // accept new sequences only if both western plotters and the western
-    // turntable do not have paper
+    auto response = self->make_response_promise<ok_atom>();
 
-    auto turntable_actor = actor_cast<actor>(
-        self->system().registry().get(turntable_west_atom::value));
+    // accept new sequences only if west planner does not have paper
+    self->request(west_planner, infinite, is_empty_atom::value).then([=](bool is_empty) {
+      if (is_empty) {
+        // pull paper to west planner
+        self->request(west_planner, infinite, pull_atom::value).then([=](ok_atom) {
+          // print on the west planner all printable characters
+          self->request(west_planner, infinite, print_atom::value, sequence).then([=](std::string rest) {
+            // after printing is complete, push the paper to the east turntable
+            self->request(west_planner, infinite, push_atom::value).then([=](ok_atom) {
+              // pull the paper from the west turntable into the east turntable
+              self->request(east_planner, infinite, pull_atom::value).then([=](ok_atom) {
+                // print on the east planner all printable characters
+                self->request(east_planner, infinite, print_atom::value, rest)
+                    .then([=](std::string /*shouldBeEmpty*/) mutable {
+                      // push the paper from the east planner
+                      response.delegate(east_planner, push_atom::value);
+                    });
+              });
+            });
+          });
+        });
+      }
+    });
+
+    return response;
   }};
 
-  return print_handler;
-  //  return {[=](put_atom, std::string sequence, size_t current_pos) {
-  //    aout(self) << "planner::put_atom: " << sequence << "[" << current_pos <<
-  //    "]"
-  //               << std::endl;
-
-  //    char ch = sequence[current_pos];
-
-  //    auto turntable_west_actor = actor_cast<actor>(
-  //        self->system().registry().get(turntable_west_atom::value));
-  //    auto turntable_east_actor = actor_cast<actor>(
-  //        self->system().registry().get(turntable_east_atom::value));
-
-  //    auto plotter_nw_actor = actor_cast<actor>(
-  //        self->system().registry().get(plotter_nw_atom::value));
-  //    auto plotter_sw_actor = actor_cast<actor>(
-  //        self->system().registry().get(plotter_sw_atom::value));
-
-  //    self->request(turntable_west_actor, 5s, get_atom::value)
-  //        .then([=](std::pair<Position, bool> state) {
-  //          auto [direction, loaded] = state;
-
-  //          // if west actor has paper, rotate it to print position
-  //          // if can't print, rotate it to push paper to the east turntable
-  //          if (loaded) {
-  //            if (ch == plotter_nw && direction == Position::North) {
-  //              self->request(plotter_nw_actor, infinite, print_atom::value,
-  //              ch)
-  //                  .then([=]() {
-  //                    self->send(self, infinite, put_atom::value, sequence,
-  //                               current_pos + 1);
-  //                  });
-  //            } else if (ch == plotter_sw && direction == Position::South) {
-  //              self->request(plotter_sw_actor, infinite, print_atom::value,
-  //              ch)
-  //                  .then([=]() {
-  //                    self->send(self, infinite, put_atom::value, sequence,
-  //                               current_pos + 1);
-  //                  });
-  //            } else if (ch != plotter_nw && ch != plotter_sw &&
-  //                       direction == Position::East) {
-  //              self->request(turntable_west_actor, infinite,
-  //              push_atom::value)
-  //                  .then([=]() {
-  //                    self->send(self, infinite, put_atom::value, sequence,
-  //                               current_pos);
-  //                  });
-  //            } else {
-  //              self->request(turntable_west_actor, infinite,
-  //              turn_atom::value)
-  //                  .then([=]() {
-  //                    self->send(self, infinite, put_atom::value, sequence,
-  //                               current_pos);
-  //                  });
-  //            }
-  //          }
-  //        });
-  //  }};
+  return print_handler; 
 }
 
 void caf_main(caf::actor_system &system) {
@@ -528,22 +492,9 @@ void caf_main(caf::actor_system &system) {
   system.registry().put(plotter_se_atom::value, plotter_se_actor);
   system.registry().put(plotter_ne_atom::value, plotter_ne_actor);
 
-  auto region_planner_actor =
-      system.spawn(region_planner, Position::West, false);
-  self->request(region_planner_actor, infinite, pull_atom::value)
-      .receive([&](ok_atom) { std::cout << "Done!" << std::endl; },
-               [&](error e) {
-                 std::cout << "\nError occurred:" << system.render(e)
-                           << std::endl;
-               });
-
-  //  self->request(planner_actor, infinite, print_atom::value,
-  //                plotter_nw_atom::value)
-  //      .receive([](ok_atom) { std::cout << "\nDone" << std::endl; },
-  //               [&](error e) {
-  //                 std::cout << "\nError occurred:" << system.render(e)
-  //                           << std::endl;
-  //               });
+  self->request(planner_actor, infinite, print_atom::value, std::string{"CK"})
+      .receive([&](ok_atom) { aout(self) << "Printing done!" << std::endl; },
+               [&](error e) { aout(self) << "Error!!!"; });
 }
 
 CAF_MAIN()
