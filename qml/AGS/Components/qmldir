@@ -1,0 +1,4 @@
+module AGS.Components
+Plotter 1.0 Plotter.qml
+Turntable 1.0 Turntable.qml
+Laptop 1.0 Laptop.qml

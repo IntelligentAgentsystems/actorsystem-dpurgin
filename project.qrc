@@ -1,0 +1,12 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qml/Main.qml</file>
+        <file>images/turntable.png</file>
+        <file>images/plotter.png</file>
+        <file>qml/AGS/Components/Plotter.qml</file>
+        <file>qml/AGS/Components/qmldir</file>
+        <file>qml/AGS/Components/Turntable.qml</file>
+        <file>images/laptop.png</file>
+        <file>qml/AGS/Components/Laptop.qml</file>
+    </qresource>
+</RCC>
