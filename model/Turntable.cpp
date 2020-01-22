@@ -17,24 +17,30 @@ static Turntable::Direction toTurntableDirection(Position position) {
 
 void Turntable::classBegin() {}
 
-void Turntable::componentComplete() {
+void Turntable::componentComplete() {  
   if (m_position == Turntable::Position::EastPos) {
+    setDirection(toTurntableDirection(agentSystemConnector()->turntableEastDirection()));
+    setLoaded(agentSystemConnector()->turntableEastLoaded());
+
     connect(agentSystemConnector(), &AgentSystemConnector::turntableEastDirectionChanged, [this]() {
       auto ttDir = toTurntableDirection(agentSystemConnector()->turntableEastDirection());
       setDirection(ttDir);
     });
+
+    connect(agentSystemConnector(), &AgentSystemConnector::turntableEastLoadedChanged,
+            [this]() { setLoaded(agentSystemConnector()->turntableEastLoaded()); });
+
   } else if (m_position == Turntable::Position::WestPos) {
+    setDirection(toTurntableDirection(agentSystemConnector()->turntableWestDirection()));
+    setLoaded(agentSystemConnector()->turntableWestLoaded());
+
     connect(agentSystemConnector(), &AgentSystemConnector::turntableWestDirectionChanged, [this]() {
       auto ttDir = toTurntableDirection(agentSystemConnector()->turntableWestDirection());
       setDirection(ttDir);
     });
+
+    connect(agentSystemConnector(), &AgentSystemConnector::turntableWestLoadedChanged,
+            [this]() { setLoaded(agentSystemConnector()->turntableWestLoaded()); });
   }
   m_isComplete = true;
-}
-
-void Turntable::setDirection(Turntable::Direction direction) {
-  if (m_direction != direction) {
-    m_direction = direction;
-    Q_EMIT directionChanged();
-  }
 }

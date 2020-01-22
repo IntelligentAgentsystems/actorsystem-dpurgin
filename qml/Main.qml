@@ -27,19 +27,21 @@ ApplicationWindow {
 
             Components.Plotter {
                 model: Model.Plotter {
-                    position: Model.Plotter.NorthEastPos
+                    position: Model.Plotter.NorthWestPos
                 }
             }
 
             Components.Plotter {
                 model: Model.Plotter {
-                    position: Model.Plotter.NorthWestPos
+                    position: Model.Plotter.NorthEastPos
                 }
             }
 
             Components.Turntable {
                 model: Model.Turntable {
                     position: Model.Turntable.WestPos
+
+                    onLoadedChanged: console.log("West turntable loaded: ", loaded)
                 }
             }
 

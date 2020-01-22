@@ -8,6 +8,7 @@
 #include <caf/all.hpp>
 #include <caf/io/all.hpp>
 
+#include <QString>
 #include <QThread>
 
 using namespace std::chrono_literals;
@@ -34,8 +35,11 @@ using pull_atom = atom_constant<atom("pull")>;
 
 using is_empty_atom = atom_constant<atom("is_empty")>;
 
-using set_turntable_direction_atom = atom_constant<atom("set_tt_dir")>;
+using set_turntable_props = atom_constant<atom("set_ttprps")>;
 using set_plotter_props_atom = atom_constant<atom("set_pprops")>;
+
+using emit_printed_atom = atom_constant<atom("printed")>;
+using emit_left_to_print_atom = atom_constant<atom("left")>;
 
 std::string to_string(Position direction) {
   switch (direction) {
@@ -58,6 +62,21 @@ std::string to_string(Position direction) {
   }
 
   return "";
+}
+
+Position to_position(QString str) {
+  str = str.toLower();
+
+  if (str == "north")
+    return Position::North;
+  else if (str == "south")
+    return Position::South;
+  else if (str == "east")
+    return Position::East;
+  else if (str == "west")
+    return Position::West;
+
+  return Position::North;
 }
 
 atom_value position_to_turntable(Position position) {
@@ -117,23 +136,33 @@ behavior connector_bridge(event_based_actor *self, AgentSystemConnector *connect
     self->request(planner, infinite, print_atom::value, sequence);
   });
 
-  return {[=](set_turntable_direction_atom, Position turntable_position, Position turntable_direction) {
-            if (turntable_position == Position::East)
-              connector->setTurntableEastDirection(turntable_direction);
-            else if (turntable_position == Position::West)
-              connector->setTurntableWestDirection(turntable_direction);
-          },
-          [=](set_plotter_props_atom, Position plotter_position, char color, bool loaded) {
-            if (plotter_position == Position::NorthEast) {
-              connector->setPlotterNorthEastColor(color);
-            } else if (plotter_position == Position::NorthWest) {
-              connector->setPlotterNorthWestColor(color);
-            } else if (plotter_position == Position::SouthEast) {
-              connector->setPlotterSouthEastColor(color);
-            } else if (plotter_position == Position::SouthWest) {
-              connector->setPlotterSouthWestColor(color);
-            }
-          }};
+  return {
+      [=](set_turntable_props, Position turntable_position, Position turntable_direction, bool loaded) {
+        if (turntable_position == Position::East) {
+          connector->setTurntableEastDirection(turntable_direction);
+          connector->setTurntableEastLoaded(loaded);
+        } else if (turntable_position == Position::West) {
+          connector->setTurntableWestDirection(turntable_direction);
+          connector->setTurntableWestLoaded(loaded);
+        }
+      },
+      [=](set_plotter_props_atom, Position plotter_position, char color, bool loaded) {
+        if (plotter_position == Position::NorthEast) {
+          connector->setPlotterNorthEastColor(color);
+          connector->setPlotterNorthEastLoaded(loaded);
+        } else if (plotter_position == Position::NorthWest) {
+          connector->setPlotterNorthWestColor(color);
+          connector->setPlotterNorthWestLoaded(loaded);
+        } else if (plotter_position == Position::SouthEast) {
+          connector->setPlotterSouthEastColor(color);
+          connector->setPlotterSouthEastLoaded(loaded);
+        } else if (plotter_position == Position::SouthWest) {
+          connector->setPlotterSouthWestColor(color);
+          connector->setPlotterSouthWestLoaded(loaded);
+        }
+      },
+      [=](emit_printed_atom, char color) { connector->printed(color); },
+      [=](emit_left_to_print_atom, std::string sequence) { connector->leftToPrint(QString::fromStdString(sequence)); }};
 }
 
 behavior plotter(event_based_actor *self, Position position, char color, bool loaded) {
@@ -162,6 +191,7 @@ behavior plotter(event_based_actor *self, Position position, char color, bool lo
                                  // print
                                  [=](print_atom) -> result<ok_atom> {
                                    aout(self) << plotterName << ": printing!" << std::endl;
+                                   self->send(connector_bridge_actor, emit_printed_atom::value, color);
                                    return ok_atom::value;
                                  }};
 
@@ -182,7 +212,7 @@ behavior turntable(event_based_actor *self, Position position, Position directio
   std::string turntable_name = "Turntable " + to_string(position);
 
   auto connector_bridge_actor = actor_cast<actor>(self->system().registry().get(connector_bridge_atom::value));
-  self->send(connector_bridge_actor, set_turntable_direction_atom::value, position, direction);
+  self->send(connector_bridge_actor, set_turntable_props::value, position, direction, loaded);
 
   // messages at any state
   message_handler basic_handler{// turn the turntable
@@ -193,7 +223,7 @@ behavior turntable(event_based_actor *self, Position position, Position directio
                                   QThread::sleep(1);
 
                                   switch (direction) {
-                                  case Position::North:                                    
+                                  case Position::North:
                                     self->become(turntable(self, position, Position::West, loaded));
                                     break;
 
@@ -214,11 +244,7 @@ behavior turntable(event_based_actor *self, Position position, Position directio
                                 },
 
                                 // current state
-                                [=](get_atom) {
-                                  aout(self) << turntable_name << ": returning state (" << direction << ", " << loaded
-                                             << ")" << std::endl;
-                                  return std::make_pair(direction, loaded);
-                                }};
+                                [=](get_atom) { return std::make_pair(direction, loaded); }};
 
   // pull into turntable
   message_handler pull_handler{[=](pull_atom) -> result<ok_atom> {
@@ -340,6 +366,7 @@ behavior region_planner(event_based_actor *self, Position region, bool loaded, c
   auto plotter_north_actor = actor_cast<actor>(self->system().registry().get(plotter_north));
   auto plotter_south_actor = actor_cast<actor>(self->system().registry().get(plotter_south));
   auto turntable_actor = actor_cast<actor>(self->system().registry().get(turntable));
+  auto connector_bridge_actor = actor_cast<actor>(self->system().registry().get(connector_bridge_atom::value));
 
   std::string name = "Region Planner " + to_string(region);
 
@@ -411,6 +438,7 @@ behavior region_planner(event_based_actor *self, Position region, bool loaded, c
           char ch = *it;
           sequence.erase(it);
           self->request(actor_cast<actor>(self), infinite, print_atom::value, ch).then([=](ok_atom) mutable {
+            self->send(connector_bridge_actor, emit_left_to_print_atom::value, sequence);
             response.delegate(actor_cast<actor>(self), print_atom::value, sequence);
           });
         }
@@ -420,9 +448,11 @@ behavior region_planner(event_based_actor *self, Position region, bool loaded, c
         // rotate to east and push
         auto response = self->make_response_promise<ok_atom>();
 
-        self->request(actor_cast<actor>(self), infinite, turn_atom::value, Position::East).then([=](ok_atom) mutable {
-          self->become(region_planner(self, region, false, north_color, south_color));
-          response.deliver(ok_atom::value);
+        self->request(actor_cast<actor>(self), infinite, turn_atom::value, Position::East).then([=](ok_atom) {
+          self->request(turntable_actor, infinite, push_atom::value).then([=](ok_atom) mutable {
+            self->become(region_planner(self, region, false, north_color, south_color));
+            response.deliver(ok_atom::value);
+          });
         });
 
         return response;
@@ -458,9 +488,12 @@ behavior planner(event_based_actor *self, std::string plotters) {
 
   auto west_planner = self->system().spawn(region_planner, Position::West, false, plotter_nw, plotter_sw);
   auto east_planner = self->system().spawn(region_planner, Position::East, false, plotter_ne, plotter_se);
+  auto connector_bridge_actor = actor_cast<actor>(self->system().registry().get(connector_bridge_atom::value));
 
   message_handler print_handler = {[=](print_atom, std::string sequence) {
     aout(self) << name << ": Printing " << sequence << std::endl;
+
+    self->send(connector_bridge_actor, emit_left_to_print_atom::value, sequence);
 
     auto response = self->make_response_promise<ok_atom>();
 

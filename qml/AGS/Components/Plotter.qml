@@ -21,7 +21,6 @@ Item {
         anchors.centerIn: parent
 
         color: {
-            console.log("model.color in rectangle:" + root.model.color)
             switch (root.model.color) {
             case Model.Plotter.Cyan:
                 return "cyan";
@@ -37,7 +36,11 @@ Item {
         }
     }
 
-    Component.onCompleted: {
-        console.log("model.color: " + model.color)
+    Image {
+        anchors.centerIn: parent
+        source: "qrc:/images/paper.png"
+        visible: model.loaded
+
+        scale:  0.5
     }
 }

@@ -11,6 +11,7 @@ Item {
     implicitWidth: layout.width
 
     property Model.Laptop model
+    property real colorButtonSize: 25
 
     ColumnLayout {
         id: layout
@@ -31,7 +32,51 @@ Item {
             }
         }
 
+        Row {
+            Rectangle {
+                width: colorButtonSize
+                height: colorButtonSize
+                color: "cyan"
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: textEdit.text += "C"
+                    cursorShape: Qt.PointingHandCursor
+                }
+            }
+            Rectangle {
+                width: colorButtonSize
+                height: colorButtonSize
+                color: "magenta"
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: textEdit.text += "M"
+                    cursorShape: Qt.PointingHandCursor
+                }
+            }
+            Rectangle {
+                width: colorButtonSize
+                height: colorButtonSize
+                color: "yellow"
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: textEdit.text += "Y"
+                    cursorShape: Qt.PointingHandCursor
+                }
+            }
+            Rectangle {
+                width: colorButtonSize
+                height: colorButtonSize
+                color: "black"
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: textEdit.text += "K"
+                    cursorShape: Qt.PointingHandCursor
+                }
+            }
+        }
+
         Button {
+            Layout.topMargin: 5
             Layout.alignment: Qt.AlignHCenter
             text: "Print"
             enabled: textEdit.acceptableInput
@@ -40,6 +85,15 @@ Item {
                 root.model.print(textEdit.text)
                 textEdit.text = ""
             }
+        }
+
+        Label {
+            Layout.topMargin: 5
+            text: "Printed: " + model.printed
+        }
+
+        Label {
+            text: "Left: " + model.leftToPrint
         }
     }
 

@@ -1,8 +1,12 @@
 #include "agentsystemconnector.h"
 
 #include <QDebug>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMutex>
 #include <QMutexLocker>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
 
 class AgentSystemConnector::Impl {
   friend class AgentSystemConnector;
@@ -16,6 +20,7 @@ class AgentSystemConnector::Impl {
 
   struct Plotter {
     char color{'C'};
+    bool loaded{false};
   } ne, nw, se, sw;
 
   PrintCallback printCallback;
@@ -39,6 +44,20 @@ void AgentSystemConnector::setTurntableEastDirection(Position direction) {
   }
 }
 
+bool AgentSystemConnector::turntableEastLoaded() const {
+  QMutexLocker locker{&d->lock};
+  return d->east.loaded;
+}
+
+void AgentSystemConnector::setTurntableEastLoaded(bool loaded) {
+  QMutexLocker locker{&d->lock};
+  if (d->east.loaded != loaded) {
+    d->east.loaded = loaded;
+    locker.unlock();
+    Q_EMIT turntableEastLoadedChanged();
+  }
+}
+
 Position AgentSystemConnector::turntableWestDirection() const {
   QMutexLocker locker{&d->lock};
   return d->west.direction;
@@ -50,6 +69,20 @@ void AgentSystemConnector::setTurntableWestDirection(Position direction) {
     d->west.direction = direction;
     locker.unlock();
     Q_EMIT turntableWestDirectionChanged();
+  }
+}
+
+bool AgentSystemConnector::turntableWestLoaded() const {
+  QMutexLocker locker{&d->lock};
+  return d->west.loaded;
+}
+
+void AgentSystemConnector::setTurntableWestLoaded(bool loaded) {
+  QMutexLocker locker{&d->lock};
+  if (d->west.loaded != loaded) {
+    d->west.loaded = loaded;
+    locker.unlock();
+    Q_EMIT turntableWestLoadedChanged();
   }
 }
 
@@ -106,6 +139,62 @@ void AgentSystemConnector::setPlotterSouthWestColor(char color) {
     d->sw.color = color;
     locker.unlock();
     Q_EMIT plotterSouthWestColorChanged();
+  }
+}
+
+bool AgentSystemConnector::plotterNorthEastLoaded() const {
+  QMutexLocker locker{&d->lock};
+  return d->ne.loaded;
+}
+
+void AgentSystemConnector::setPlotterNorthEastLoaded(bool loaded) {
+  QMutexLocker locker{&d->lock};
+  if (d->ne.loaded != loaded) {
+    d->ne.loaded = loaded;
+    locker.unlock();
+    Q_EMIT plotterNorthEastLoadedChanged();
+  }
+}
+
+bool AgentSystemConnector::plotterNorthWestLoaded() const {
+  QMutexLocker locker{&d->lock};
+  return d->nw.loaded;
+}
+
+void AgentSystemConnector::setPlotterNorthWestLoaded(bool loaded) {
+  QMutexLocker locker{&d->lock};
+  if (d->nw.loaded != loaded) {
+    d->nw.loaded = loaded;
+    locker.unlock();
+    Q_EMIT plotterNorthWestLoadedChanged();
+  }
+}
+
+bool AgentSystemConnector::plotterSouthEastLoaded() const {
+  QMutexLocker locker{&d->lock};
+  return d->se.loaded;
+}
+
+void AgentSystemConnector::setPlotterSouthEastLoaded(bool loaded) {
+  QMutexLocker locker{&d->lock};
+  if (d->se.loaded != loaded) {
+    d->se.loaded = loaded;
+    locker.unlock();
+    Q_EMIT plotterSouthEastLoadedChanged();
+  }
+}
+
+bool AgentSystemConnector::plotterSouthWestLoaded() const {
+  QMutexLocker locker{&d->lock};
+  return d->sw.loaded;
+}
+
+void AgentSystemConnector::setPlotterSouthWestLoaded(bool loaded) {
+  QMutexLocker locker{&d->lock};
+  if (d->sw.loaded != loaded) {
+    d->sw.loaded = loaded;
+    locker.unlock();
+    Q_EMIT plotterSouthWestLoadedChanged();
   }
 }
 

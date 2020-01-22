@@ -44,6 +44,9 @@ QtGuiApplication {
     Depends {
         name: "Qt.qml"
     }
+    Depends {
+        name: "Qt.network"
+    }
 
     property string cafPath: "D:/MyDocs/Documents/Studium/9_AGS/caf"
     property string qmlImportPath: "D:/MyDocs/Documents/Studium/9_AGS/project/qml"

@@ -8,5 +8,6 @@
         <file>qml/AGS/Components/Turntable.qml</file>
         <file>images/laptop.png</file>
         <file>qml/AGS/Components/Laptop.qml</file>
+        <file>images/paper.png</file>
     </qresource>
 </RCC>
