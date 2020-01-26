@@ -7,13 +7,13 @@ actorsystem-dpurgin created by GitHub Classroom
    * You can use the prebuilt CAF for Windows for MSVC 2017 from https://dpurgin.github.io
 1. If you intend to use the prebuilt CAF for Windows for MSVC 2017: 
    * Install MS Visual Studio 2017 with C++ desktop development workload
-   * Install [open-source Qt Framework](https://www.qt.io/download-qt-installer) version 5.12.x for MSVC 2017
+   * Install [open-source Qt Framework](https://www.qt.io/download-qt-installer) version 5.12.x for MSVC 2017 (choose LTS and archive versions in the online installer)
 2. If you are on Linux or intend to build CAF yourself:
    * Install any version of [open-source Qt Framework](https://www.qt.io/download-qt-installer), use the online installer even on Linux (don't use the OS's package manager, the Qt builds there are almost always outdated)
    * C++17-compliant compiler required
 3. Open Qt Creator installed with the Qt framework
 4. Open `project.qbs` in Qt Creator as project
-5. If on Windows, you might need to set paths to the binary version of CAF in lines 51-55 of `project.qbs`
+5. If on Windows, you might need to set paths to the CAF build in lines 51-55 of `project.qbs`
 
 ## Building CAF on Windows
 
